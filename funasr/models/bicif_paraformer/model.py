@@ -279,6 +279,18 @@ class BiCifParaformer(Paraformer):
             predictor_outs[2],
             predictor_outs[3],
         )
+
+        # print (pre_acoustic_embeds.shape, pre_token_length.shape, alphas.shape, pre_peak_index.shape)
+        # 输出： torch.Size([3, 27, 512]) torch.Size([3]) torch.Size([3, 85]) torch.Size([3, 85])
+        # 上面输出是加载 modelscope 下的 model：modelscope/hub/iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch/
+        # 对某个 audio（该modelscope model 下的 example/asr_example.wav），输出如下（注意切分成了 3 个不等长的片段。三个片段是原始语句的三个完整子句，所以应该是背后是靠的 VAD 切分的）
+        # 
+        # 上面的 [3, 27, 512] == (batch_size, seq_len, dim_feature)
+        # 三个子句是：
+        # - 因为如果当你认为这个世界没有正义， 
+        # - 正是因为存在绝对正义所以我们接受现实的相对正义
+        # - 但是不要因为>现实的相对正义我们就认为这个世界没有正义
+        
         pre_token_length = pre_token_length.round().long()
         if torch.max(pre_token_length) < 1:
             return []
