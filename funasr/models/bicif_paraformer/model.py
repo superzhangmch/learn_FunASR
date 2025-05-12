@@ -281,12 +281,7 @@ class BiCifParaformer(Paraformer):
     
         # predictor
         predictor_outs = self.calc_predictor(encoder_out, encoder_out_lens)
-        pre_acoustic_embeds, pre_token_length, alphas, pre_peak_index = (
-            predictor_outs[0],
-            predictor_outs[1],
-            predictor_outs[2],
-            predictor_outs[3],
-        )
+        pre_acoustic_embeds, pre_token_length, alphas, pre_peak_index = (predictor_outs[0], predictor_outs[1], predictor_outs[2], predictor_outs[3],)
 
         # print (pre_acoustic_embeds.shape, pre_token_length.shape, alphas.shape, pre_peak_index.shape)
         # 输出： torch.Size([3, 27, 512]) torch.Size([3]) torch.Size([3, 85]) torch.Size([3, 85])
@@ -296,19 +291,18 @@ class BiCifParaformer(Paraformer):
         pre_token_length = pre_token_length.round().long()
         if torch.max(pre_token_length) < 1:
             return []
-        decoder_outs = self.cal_decoder_with_predictor(
-            encoder_out, encoder_out_lens, pre_acoustic_embeds, pre_token_length
-        )
+    
+        decoder_outs = self.cal_decoder_with_predictor(encoder_out, encoder_out_lens, pre_acoustic_embeds, pre_token_length)
         decoder_out, ys_pad_lens = decoder_outs[0], decoder_outs[1]
+        
         # print (decoder_out.shape, ys_pad_lens)
         # torch.Size([3, 27, 8404]) tensor([17, 24, 27], device='cuda:0')
         # 三个子句分别有 17， 24， 27 个 tokens。8404 是词表大小（model_name=speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch中也有8404）
         # asr 一个难点就是语音和文字的对齐问题，所以才发明了 CTC。而 funASR 这样的方法巧妙之处就在于预测出了每个token的语音长度，先预测出了有多少个token，从而解决了对齐问题。
 
         # BiCifParaformer, test no bias cif2
-        _, _, us_alphas, us_peaks = self.calc_predictor_timestamp(
-            encoder_out, encoder_out_lens, pre_token_length
-        )
+        _, _, us_alphas, us_peaks = self.calc_predictor_timestamp(encoder_out, encoder_out_lens, pre_token_length) 
+        # 上面是基于 同样的 encoder_out 作为 input 作预测。和文字的预测是两个独立的  cif。这样岂不是可能识别出的文字数量可能不一致？所以把 pre_token_length 传进去，以便强行使得时间戳数量等于识别出的token数
 
         results = []
         b, n, d = decoder_out.size()
@@ -365,7 +359,7 @@ class BiCifParaformer(Paraformer):
                     text = tokenizer.tokens2text(token) # 把 token_arr 拼接成最终 text
 
                     _, timestamp = ts_prediction_lfr6_standard(  # 这个函数内部，其实就是：利用 CIF 模型中每个 token 的 fire point（触发点），来界定该 token 在原始音频中的时间偏移（time offset）和持续时间。
-                        us_alphas[i][: encoder_out_lens[i] * 3], # 其实正是从 alphas 推断出的 us_peaks
+                        us_alphas[i][: encoder_out_lens[i] * 3], # 其实正是从 us_alphas 推断出的 us_peaks
                         us_peaks[i][: encoder_out_lens[i] * 3],  # fire 点
                         copy.copy(token),
                         vad_offset=kwargs.get("begin_time", 0),
