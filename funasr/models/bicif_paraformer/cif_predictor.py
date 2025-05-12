@@ -259,10 +259,12 @@ class CifPredictorV3(torch.nn.Module):
         if self.upsample_type == "cnn":
             output2 = self.upsample_cnn(_output)
             output2 = output2.transpose(1, 2)
-        elif self.upsample_type == "cnn_blstm":
-            output2 = self.upsample_cnn(_output)
-            output2 = output2.transpose(1, 2)
-            output2, (_, _) = self.blstm(output2)
+        elif self.upsample_type == "cnn_blstm":   # 默认走它
+            output2 = self.upsample_cnn(_output)  # shape=[bs, fea_dim, seq_len] => [bs, fea_dim, seq_len*4]， 乃 torch.nn.ConvTranspose1d 卷积所以只对最后一维升维了
+            output2 = output2.transpose(1, 2)     # 还原shape成 [bs, seq_len*4, fea_dim]
+            output2, (_, _) = self.blstm(output2) # shape=[bs, seq_len*4, fea_dim] => [bs, seq_len*4, fea_dim*2]， 因为是双向 lstm，所以 fea_dim 翻倍
+                                                  # 另外注意，output2 里结果是所有时间的 lstm 的输出，而不是只是最后一个time step 的
+
         elif self.upsample_type == "cnn_attn":
             output2 = self.upsample_cnn(_output)
             output2 = output2.transpose(1, 2)
@@ -280,14 +282,17 @@ class CifPredictorV3(torch.nn.Module):
             alphas2 = alphas2 * mask2
         alphas2 = alphas2.squeeze(-1)
         _token_num = alphas2.sum(-1)
-        if token_num is not None:
+        if token_num is not None: # token_num 表示识别出的token数。这里是要独立找出这些token的时间offset，所以必须保证两者的token数是一致的。方法是强行对齐
             alphas2 *= (token_num / _token_num)[:, None].repeat(1, alphas2.size(1))
+
         # re-downsample
         ds_alphas = alphas2.reshape(b, -1, self.upsample_times).sum(-1)
-        ds_cif_peak = cif_wo_hidden(ds_alphas, self.threshold - 1e-4)
+        ds_cif_peak = cif_wo_hidden(ds_alphas, self.threshold - 1e-4) # _wo_ == _without_, 函数cif_wo_hidden只是找出fire 点，但是不操作 embedding(即 hidden)
+
         # upsampled alphas and cif_peak
         us_alphas = alphas2
-        us_cif_peak = cif_wo_hidden(us_alphas, self.threshold - 1e-4)
+        us_cif_peak = cif_wo_hidden(us_alphas, self.threshold - 1e-4) # 找到 fire 点
+        
         return ds_alphas, ds_cif_peak, us_alphas, us_cif_peak
 
     def tail_process_fn(self, hidden, alphas, token_num=None, mask=None):
