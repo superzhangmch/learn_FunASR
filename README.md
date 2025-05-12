@@ -1,3 +1,8 @@
+<ul>
+    <li>标注了的文件： https://github.com/superzhangmch/learn_FunASR/blob/main/funasr/models/bicif_paraformer/model.py</li>
+</ul>
+<hr>
+
 [//]: # (<div align="left"><img src="docs/images/funasr_logo.jpg" width="400"/></div>)
 
 ([简体中文](./README_zh.md)|English)
